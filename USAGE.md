@@ -1,6 +1,6 @@
 # Panduan Penggunaan Aplikasi Histogram Specification
 
-## 🚀 Menjalankan Aplikasi
+## Menjalankan Aplikasi
 
 ### 1. Persiapan
 ```bash
@@ -14,7 +14,7 @@ python app.py
 ### 2. Akses Aplikasi
 Buka browser dan akses: **http://localhost:5000**
 
-## 📖 Cara Menggunakan
+## Cara Menggunakan
 
 ### Langkah 1: Upload Gambar Source
 1. Klik tombol "Pilih Gambar" di kotak "Gambar Asli (Source)"
@@ -31,7 +31,7 @@ Buka browser dan akses: **http://localhost:5000**
 2. Tunggu proses selesai (loading indicator akan muncul)
 3. Hasil akan ditampilkan secara otomatis
 
-## 📊 Memahami Hasil
+## Memahami Hasil
 
 ### 1. Gambar Hasil
 Tiga gambar ditampilkan:
@@ -90,7 +90,7 @@ Detail lengkap proses algoritma:
 - Langkah 5: Aplikasi transformasi
 - Verifikasi hasil
 
-## 💡 Tips Penggunaan
+## Tips Penggunaan
 
 ### Memilih Gambar Source
 - Gunakan gambar dengan kontras rendah untuk hasil terbaik
@@ -108,7 +108,7 @@ Detail lengkap proses algoritma:
 3. **MSE**: Nilai kecil menunjukkan specification berhasil
 4. **Status Verifikasi**: Mayoritas harus MATCH atau CLOSE
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Error: "Kedua gambar harus diupload"
 - Pastikan kedua gambar (source dan target) sudah dipilih
@@ -124,15 +124,7 @@ Detail lengkap proses algoritma:
 - Coba gambar target yang berbeda
 - Pastikan gambar target memiliki karakteristik yang diinginkan
 
-## 📱 Kompatibilitas Browser
-
-- ✅ Chrome (Recommended)
-- ✅ Firefox
-- ✅ Safari
-- ✅ Edge
-- ✅ Mobile browsers
-
-## 🎓 Referensi Algoritma
+## Referensi Algoritma
 
 Algoritma berdasarkan:
 - Gonzalez & Woods - Digital Image Processing

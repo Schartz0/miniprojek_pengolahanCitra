@@ -1,6 +1,6 @@
 # Fitur Lengkap Aplikasi Histogram Specification
 
-## 🎯 Fitur Utama
+## Fitur Utama
 
 ### 1. Upload Gambar
 - Upload gambar source (asli)
@@ -77,7 +77,7 @@ Implementasi lengkap algoritma histogram specification dengan 5 langkah:
 - Penjelasan matematis
 - Contoh perhitungan
 
-## 🎨 Desain UI
+## Desain UI
 
 - Responsive design (mobile-friendly)
 - Gradient background modern
@@ -86,14 +86,14 @@ Implementasi lengkap algoritma histogram specification dengan 5 langkah:
 - Loading indicator
 - Error handling dengan pesan jelas
 
-## 🚀 Performa
+## Performa
 
 - Proses cepat dengan NumPy
 - Visualisasi real-time dengan Matplotlib
 - Efficient image encoding (base64)
 - Optimized chart generation
 
-## 📊 Output
+## Output
 
 Semua hasil dapat dilihat langsung di browser:
 1. Gambar hasil specification
@@ -103,7 +103,7 @@ Semua hasil dapat dilihat langsung di browser:
 5. 1 nilai MSE
 6. Log proses lengkap
 
-## 🔧 Teknologi
+## Teknologi
 
 - **Backend**: Flask (Python)
 - **Image Processing**: OpenCV
@@ -111,16 +111,9 @@ Semua hasil dapat dilihat langsung di browser:
 - **Visualization**: Matplotlib
 - **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
 
-## 📱 Kompatibilitas
+## Kompatibilitas
 
 - Desktop: Chrome, Firefox, Safari, Edge
 - Mobile: iOS Safari, Chrome Mobile
 - Tablet: iPad, Android Tablet
 
-## 🌐 Deployment Ready
-
-- Procfile untuk Heroku
-- requirements.txt lengkap
-- .gitignore configured
-- Environment variables support
-- Production-ready dengan gunicorn
