@@ -8,11 +8,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from io import BytesIO
 
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), 'templates'))
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
-
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def histogram_specification_complete(source_img, target_img):
     """
