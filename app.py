@@ -9,20 +9,84 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 
 app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), 'templates'))
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB max
+
+# Batas panjang sisi terpanjang gambar untuk display (bukan untuk komputasi)
+DISPLAY_MAX_SIZE = 800
+
+def resize_for_display(img):
+    """Resize gambar hanya untuk keperluan display, bukan komputasi."""
+    h, w = img.shape[:2]
+    if max(h, w) <= DISPLAY_MAX_SIZE:
+        return img
+    scale = DISPLAY_MAX_SIZE / max(h, w)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+    return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+def img_to_base64(img, quality=85):
+    """Encode gambar ke JPEG base64 untuk transfer yang lebih ringan."""
+    display_img = resize_for_display(img)
+    _, buffer = cv2.imencode('.jpg', display_img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    return "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
+
+def plot_to_base64(fig):
+    """Simpan figure matplotlib ke base64 PNG dengan DPI rendah."""
+    buf = BytesIO()
+    fig.savefig(buf, format='png', dpi=72, bbox_inches='tight')
+    buf.seek(0)
+    data = base64.b64encode(buf.read()).decode('utf-8')
+    plt.close(fig)
+    return "data:image/png;base64," + data
+
+def create_histogram_plot(hist_data, title, color):
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.bar(range(256), hist_data, color=color, alpha=0.7, width=1)
+    ax.set_title(title, fontsize=10, fontweight='bold')
+    ax.set_xlim([0, 255])
+    ax.set_xlabel('Intensitas', fontsize=8)
+    ax.set_ylabel('Frekuensi', fontsize=8)
+    ax.tick_params(labelsize=7)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return plot_to_base64(fig)
+
+def create_cdf_plot(cdf_data, title, color, label):
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.plot(range(256), cdf_data, color=color, linewidth=2, label=label)
+    ax.set_title(title, fontsize=10, fontweight='bold')
+    ax.set_xlim([0, 255])
+    ax.set_ylim([0, 1])
+    ax.set_xlabel('Intensitas', fontsize=8)
+    ax.set_ylabel('CDF', fontsize=8)
+    ax.tick_params(labelsize=7)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    return plot_to_base64(fig)
+
+def create_comparison_plot(source_cdf, target_cdf, result_cdf):
+    fig, ax = plt.subplots(figsize=(7, 3.5))
+    ax.plot(range(256), source_cdf, 'b-', label='Citra Asli', linewidth=1.5)
+    ax.plot(range(256), target_cdf, 'g-', label='Citra Target', linewidth=1.5)
+    ax.plot(range(256), result_cdf, 'r--', label='Hasil Specification', linewidth=2)
+    ax.set_title('Perbandingan CDF Ketiga Citra', fontsize=11, fontweight='bold')
+    ax.set_xlabel('Intensitas Piksel', fontsize=8)
+    ax.set_ylabel('CDF', fontsize=8)
+    ax.tick_params(labelsize=7)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return plot_to_base64(fig)
 
 def histogram_specification_complete(source_img, target_img):
-    """
-    Implementasi lengkap Histogram Specification dengan penjabaran matematis
-    """
     logs = []
-    
     logs.append("=" * 90)
     logs.append(" " * 25 + "HISTOGRAM SPECIFICATION")
     logs.append(" " * 28 + "ALGORITMA LENGKAP")
     logs.append("=" * 90)
 
-    # Konversi ke grayscale
+    # Step 0: Konversi ke grayscale
     if len(source_img.shape) == 3:
         source_gray = cv2.cvtColor(source_img, cv2.COLOR_BGR2GRAY)
         logs.append("\n[STEP 0] KONVERSI: Citra Asli (RGB) → Grayscale")
@@ -37,7 +101,7 @@ def histogram_specification_complete(source_img, target_img):
         target_gray = target_img.copy()
         logs.append("[STEP 0] Citra Target sudah Grayscale")
 
-    # LANGKAH 1: HITUNG HISTOGRAM
+    # Step 1: Hitung histogram — gunakan np.bincount, jauh lebih cepat dari double loop
     logs.append("\n" + "=" * 90)
     logs.append("LANGKAH 1: MENGHITUNG HISTOGRAM")
     logs.append("=" * 90)
@@ -47,83 +111,65 @@ def histogram_specification_complete(source_img, target_img):
     L = 256
 
     logs.append(f"\nDIMENSI CITRA:")
-    logs.append(f"   Citra Asli: {M} × {N} = {M*N} piksel")
-    logs.append(f"   Citra Target: {M_t} × {N_t} = {M_t*N_t} piksel")
+    logs.append(f"   Citra Asli: {M} x {N} = {M*N} piksel")
+    logs.append(f"   Citra Target: {M_t} x {N_t} = {M_t*N_t} piksel")
     logs.append(f"   Level Intensitas (L): {L} (0 sampai 255)")
 
-    # Hitung histogram
-    source_hist = np.zeros(L, dtype=np.float32)
-    target_hist = np.zeros(L, dtype=np.float32)
+    # np.bincount jauh lebih cepat dari double loop untuk gambar besar
+    source_hist = np.bincount(source_gray.ravel(), minlength=L).astype(np.float32)
+    target_hist = np.bincount(target_gray.ravel(), minlength=L).astype(np.float32)
 
-    for i in range(M):
-        for j in range(N):
-            source_hist[source_gray[i, j]] += 1
-
-    for i in range(M_t):
-        for j in range(N_t):
-            target_hist[target_gray[i, j]] += 1
-
-    # LANGKAH 2: NORMALISASI (PDF)
+    # Step 2: Normalisasi (PDF)
     logs.append("\n" + "=" * 90)
     logs.append("LANGKAH 2: NORMALISASI HISTOGRAM (PDF)")
     logs.append("=" * 90)
-    logs.append(f"\nRUMUS PDF: p(rₖ) = nₖ / (M × N)")
+    logs.append(f"\nRUMUS PDF: p(rk) = nk / (M x N)")
 
     source_pdf = source_hist / (M * N)
     target_pdf = target_hist / (M_t * N_t)
 
-    # LANGKAH 3: HITUNG CDF
+    # Step 3: Hitung CDF
     logs.append("\n" + "=" * 90)
     logs.append("LANGKAH 3: HITUNG CDF (CUMULATIVE DISTRIBUTION FUNCTION)")
     logs.append("=" * 90)
-    logs.append(f"\nRUMUS CDF: T(rₖ) = (L-1) × Σⱼ₌₀ᵏ p(rⱼ)")
+    logs.append(f"\nRUMUS CDF: T(rk) = (L-1) x jumlah p(rj) dari j=0 sampai k")
 
     source_cdf = np.cumsum(source_pdf)
     target_cdf = np.cumsum(target_pdf)
 
-    # LANGKAH 4: MEMBUAT MAPPING TABLE
+    # Step 4: Inverse mapping — gunakan np.searchsorted, O(256 log 256) vs O(256x256)
     logs.append("\n" + "=" * 90)
     logs.append("LANGKAH 4: MEMBUAT TABEL MAPPING (INVERSE MAPPING)")
     logs.append("=" * 90)
 
-    lookup_table = np.zeros(L, dtype=np.uint8)
+    # searchsorted mencari posisi insert yang menjaga urutan sorted,
+    # efeknya sama dengan argmin |target_cdf[z] - source_cdf[r]| tapi jauh lebih cepat
+    lookup_table = np.searchsorted(target_cdf, source_cdf).clip(0, 255).astype(np.uint8)
+
     mapping_data = []
+    for r in range(20):
+        z = int(lookup_table[r])
+        mapping_data.append({
+            'r': r,
+            'cdf_s': float(source_cdf[r]),
+            'z': z,
+            'cdf_t': float(target_cdf[z]),
+            'error': float(abs(target_cdf[z] - source_cdf[r]))
+        })
 
-    for r in range(L):
-        cdf_s = source_cdf[r]
-        min_diff = float('inf')
-        best_z = 0
-
-        for z in range(L):
-            diff = abs(target_cdf[z] - cdf_s)
-            if diff < min_diff:
-                min_diff = diff
-                best_z = z
-
-        lookup_table[r] = best_z
-        
-        if r < 20:
-            mapping_data.append({
-                'r': r,
-                'cdf_s': float(cdf_s),
-                'z': best_z,
-                'cdf_t': float(target_cdf[best_z]),
-                'error': float(min_diff)
-            })
-
-    # LANGKAH 5: APLIKASIKAN TRANSFORMASI
+    # Step 5: Aplikasi transformasi
     logs.append("\n" + "=" * 90)
     logs.append("LANGKAH 5: APLIKASI TRANSFORMASI PADA CITRA")
     logs.append("=" * 90)
 
     result_img = cv2.LUT(source_gray, lookup_table)
 
-    # VERIFIKASI HASIL
+    # Verifikasi
     logs.append("\n" + "=" * 90)
     logs.append("VERIFIKASI HASIL")
     logs.append("=" * 90)
 
-    result_hist = cv2.calcHist([result_img], [0], None, [256], [0, 256]).flatten()
+    result_hist = np.bincount(result_img.ravel(), minlength=L).astype(np.float32)
     result_pdf = result_hist / result_img.size
     result_cdf = np.cumsum(result_pdf)
 
@@ -140,7 +186,7 @@ def histogram_specification_complete(source_img, target_img):
             'status': status
         })
 
-    mse_cdf = np.mean((result_cdf - target_cdf) ** 2)
+    mse_cdf = float(np.mean((result_cdf - target_cdf) ** 2))
     logs.append(f"\nMSE antara CDF Hasil dan CDF Target: {mse_cdf:.8f}")
 
     return {
@@ -156,69 +202,8 @@ def histogram_specification_complete(source_img, target_img):
         'logs': logs,
         'mapping_data': mapping_data,
         'verification_data': verification_data,
-        'mse_cdf': float(mse_cdf)
+        'mse_cdf': mse_cdf
     }
-
-def create_histogram_plot(hist_data, title, color):
-    """Generate histogram plot"""
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(range(256), hist_data, color=color, alpha=0.7, width=1)
-    ax.set_title(title, fontsize=12, fontweight='bold')
-    ax.set_xlim([0, 255])
-    ax.set_xlabel('Intensitas')
-    ax.set_ylabel('Frekuensi')
-    ax.grid(True, alpha=0.3)
-    
-    buf = BytesIO()
-    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-    plt.close()
-    return f"data:image/png;base64,{img_base64}"
-
-def create_cdf_plot(cdf_data, title, color, label):
-    """Generate CDF plot"""
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(range(256), cdf_data, color=color, linewidth=2.5, label=label)
-    ax.set_title(title, fontsize=12, fontweight='bold')
-    ax.set_xlim([0, 255])
-    ax.set_ylim([0, 1])
-    ax.set_xlabel('Intensitas')
-    ax.set_ylabel('CDF')
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-    
-    buf = BytesIO()
-    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-    plt.close()
-    return f"data:image/png;base64,{img_base64}"
-
-def create_comparison_plot(source_cdf, target_cdf, result_cdf):
-    """Generate CDF comparison plot"""
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(range(256), source_cdf, 'b-', label='Citra Asli', linewidth=2)
-    ax.plot(range(256), target_cdf, 'g-', label='Citra Target', linewidth=2)
-    ax.plot(range(256), result_cdf, 'r--', label='Hasil Specification', linewidth=2.5)
-    ax.set_title('Perbandingan CDF Ketiga Citra', fontsize=14, fontweight='bold')
-    ax.set_xlabel('Intensitas Piksel')
-    ax.set_ylabel('CDF')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    
-    buf = BytesIO()
-    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-    plt.close()
-    return f"data:image/png;base64,{img_base64}"
-
-def img_to_base64(img):
-    """Convert image to base64 string"""
-    _, buffer = cv2.imencode('.png', img)
-    img_base64 = base64.b64encode(buffer).decode('utf-8')
-    return f"data:image/png;base64,{img_base64}"
 
 @app.route('/')
 def index():
@@ -236,47 +221,32 @@ def process():
         return jsonify({'error': 'Tidak ada file yang dipilih'}), 400
 
     try:
-        # Baca gambar
         source_bytes = np.frombuffer(source_file.read(), np.uint8)
         target_bytes = np.frombuffer(target_file.read(), np.uint8)
-        
+
         source_img = cv2.imdecode(source_bytes, cv2.IMREAD_COLOR)
         target_img = cv2.imdecode(target_bytes, cv2.IMREAD_COLOR)
 
-        # Proses histogram specification
+        if source_img is None or target_img is None:
+            return jsonify({'error': 'Gagal membaca gambar. Pastikan format file valid.'}), 400
+
         result = histogram_specification_complete(source_img, target_img)
 
-        # Convert images ke base64
-        source_b64 = img_to_base64(result['source_gray'])
-        target_b64 = img_to_base64(result['target_gray'])
-        result_b64 = img_to_base64(result['result_img'])
-
-        # Generate plots
-        hist_source_plot = create_histogram_plot(result['source_hist'], 'Histogram Citra Asli', 'blue')
-        hist_target_plot = create_histogram_plot(result['target_hist'], 'Histogram Citra Target', 'green')
-        hist_result_plot = create_histogram_plot(result['result_hist'], 'Histogram Hasil', 'red')
-
-        cdf_source_plot = create_cdf_plot(result['source_cdf'], 'CDF Citra Asli', 'blue', 'CDF Asli')
-        cdf_target_plot = create_cdf_plot(result['target_cdf'], 'CDF Citra Target', 'green', 'CDF Target')
-        cdf_result_plot = create_cdf_plot(result['result_cdf'], 'CDF Hasil', 'red', 'CDF Hasil')
-
-        comparison_plot = create_comparison_plot(result['source_cdf'], result['target_cdf'], result['result_cdf'])
-
         return jsonify({
-            'source': source_b64,
-            'target': target_b64,
-            'result': result_b64,
-            'hist_source': hist_source_plot,
-            'hist_target': hist_target_plot,
-            'hist_result': hist_result_plot,
-            'cdf_source': cdf_source_plot,
-            'cdf_target': cdf_target_plot,
-            'cdf_result': cdf_result_plot,
-            'comparison': comparison_plot,
-            'logs': result['logs'],
-            'mapping_data': result['mapping_data'],
+            'source':       img_to_base64(result['source_gray']),
+            'target':       img_to_base64(result['target_gray']),
+            'result':       img_to_base64(result['result_img']),
+            'hist_source':  create_histogram_plot(result['source_hist'], 'Histogram Citra Asli', 'blue'),
+            'hist_target':  create_histogram_plot(result['target_hist'], 'Histogram Citra Target', 'green'),
+            'hist_result':  create_histogram_plot(result['result_hist'], 'Histogram Hasil', 'red'),
+            'cdf_source':   create_cdf_plot(result['source_cdf'], 'CDF Citra Asli', 'blue', 'CDF Asli'),
+            'cdf_target':   create_cdf_plot(result['target_cdf'], 'CDF Citra Target', 'green', 'CDF Target'),
+            'cdf_result':   create_cdf_plot(result['result_cdf'], 'CDF Hasil', 'red', 'CDF Hasil'),
+            'comparison':   create_comparison_plot(result['source_cdf'], result['target_cdf'], result['result_cdf']),
+            'logs':             result['logs'],
+            'mapping_data':     result['mapping_data'],
             'verification_data': result['verification_data'],
-            'mse_cdf': result['mse_cdf']
+            'mse_cdf':          result['mse_cdf']
         })
 
     except Exception as e:
